@@ -1,0 +1,88 @@
+{
+  "summary": {
+    "passed": 11,
+    "total": 11,
+    "success_rate": 1.0
+  },
+  "timestamp": "2026-04-13T12:16:44.836575",
+  "backend_url": "https://adsb-runway-finder.preview.emergentagent.com/api",
+  "results": [
+    {
+      "test": "GET /api/airports",
+      "success": true,
+      "details": "Returned 20 airports with correct structure",
+      "timestamp": "2026-04-13T12:16:42.160088",
+      "response_data": null
+    },
+    {
+      "test": "GET /api/airports/LFPG",
+      "success": true,
+      "details": "Returned Paris Charles de Gaulle with 4 runways",
+      "timestamp": "2026-04-13T12:16:42.221113",
+      "response_data": null
+    },
+    {
+      "test": "GET /api/airports/XXXX (invalid)",
+      "success": true,
+      "details": "Correctly returned 404 for invalid airport",
+      "timestamp": "2026-04-13T12:16:42.267839",
+      "response_data": null
+    },
+    {
+      "test": "GET /api/search-airports/PARIS",
+      "success": true,
+      "details": "Found 2 Paris airports: ['LFPG', 'LFPO']",
+      "timestamp": "2026-04-13T12:16:42.316378",
+      "response_data": null
+    },
+    {
+      "test": "GET /api/search-airports/JFK",
+      "success": true,
+      "details": "Found JFK airport: ['KJFK']",
+      "timestamp": "2026-04-13T12:16:42.362739",
+      "response_data": null
+    },
+    {
+      "test": "GET /api/runway-status/LFPG",
+      "success": true,
+      "details": "OpenSky integration working - Found 21 nearby aircraft, 3 landing, 1 active runways",
+      "timestamp": "2026-04-13T12:16:42.854555",
+      "response_data": null
+    },
+    {
+      "test": "GET /api/runway-status/EGLL",
+      "success": true,
+      "details": "EGLL: 27 nearby aircraft, 4 landing",
+      "timestamp": "2026-04-13T12:16:43.304044",
+      "response_data": null
+    },
+    {
+      "test": "GET /api/runway-status/XXXX (invalid)",
+      "success": true,
+      "details": "Correctly returned 404 for invalid airport",
+      "timestamp": "2026-04-13T12:16:43.349574",
+      "response_data": null
+    },
+    {
+      "test": "OpenSky Network Integration",
+      "success": true,
+      "details": "Successfully fetched 50 aircraft from OpenSky API",
+      "timestamp": "2026-04-13T12:16:43.906610",
+      "response_data": null
+    },
+    {
+      "test": "Landing Detection Logic",
+      "success": true,
+      "details": "Detected 0/3 aircraft as landing, assigned to 0 runways",
+      "timestamp": "2026-04-13T12:16:44.359821",
+      "response_data": null
+    },
+    {
+      "test": "Runway Matching Logic",
+      "success": true,
+      "details": "Runway matching working - 1 active runways with proper direction/heading data",
+      "timestamp": "2026-04-13T12:16:44.836442",
+      "response_data": null
+    }
+  ]
+}

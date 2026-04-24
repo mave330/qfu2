@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: qfu-webapp
+    runtime: python
+    plan: free
+    buildCommand: scripts/download_ourairports.sh && pip install -r backend/requirements.txt
+    startCommand: uvicorn backend.server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3

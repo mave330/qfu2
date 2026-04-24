@@ -1,0 +1,8 @@
+fastapi==0.110.1
+uvicorn[standard]==0.25.0
+python-dotenv==1.2.2
+httpx==0.28.1
+pydantic==2.12.5
+
+# Optional: only needed if future persistence uses MONGO_URL/DB_NAME.
+motor==3.3.1

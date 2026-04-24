@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Flight QFU Tracker</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Live runway intelligence</p>
+        <h1>Find the active landing QFU.</h1>
+        <p class="lede">
+          Search a supported airport and compare nearby aircraft, runway alignment,
+          and METAR wind to infer active landing directions.
+        </p>
+
+        <form id="search-form" class="search-card" autocomplete="off">
+          <label for="airport-input">Airport ICAO, city, or name</label>
+          <div class="search-row">
+            <input id="airport-input" name="airport" placeholder="Try LFPG, Paris, JFK..." />
+            <button type="submit">Analyze</button>
+          </div>
+          <div id="suggestions" class="suggestions" hidden></div>
+        </form>
+      </section>
+
+      <section class="status-strip" aria-live="polite">
+        <div>
+          <span class="label">API</span>
+          <strong id="api-status">Checking...</strong>
+        </div>
+        <div>
+          <span class="label">Airports</span>
+          <strong id="airport-count">-</strong>
+        </div>
+        <div>
+          <span class="label">Last update</span>
+          <strong id="last-update">-</strong>
+        </div>
+      </section>
+
+      <section id="message" class="message" hidden></section>
+
+      <section id="results" class="results" hidden>
+        <article class="panel airport-panel">
+          <div>
+            <p class="eyebrow">Airport</p>
+            <h2 id="airport-title"></h2>
+            <p id="airport-meta"></p>
+          </div>
+          <div class="badge" id="airport-code"></div>
+        </article>
+
+        <article class="panel">
+          <p class="eyebrow">Runway layout</p>
+          <h2>Orientation and runway names</h2>
+          <div id="runway-layout" class="runway-layout"></div>
+        </article>
+
+        <section class="grid">
+          <article class="panel">
+            <p class="eyebrow">Runway call</p>
+            <h2 id="runway-message"></h2>
+            <div id="runway-list" class="runway-list"></div>
+          </article>
+
+          <article class="panel">
+            <p class="eyebrow">Weather</p>
+            <h2 id="weather-title">METAR unavailable</h2>
+            <div id="weather-grid" class="weather-grid"></div>
+            <p id="raw-metar" class="raw-metar"></p>
+          </article>
+        </section>
+
+        <article class="panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Traffic picture</p>
+              <h2 id="aircraft-title"></h2>
+            </div>
+            <button id="refresh-button" class="ghost" type="button">Refresh</button>
+          </div>
+          <div id="aircraft-list" class="aircraft-list"></div>
+        </article>
+      </section>
+    </main>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
