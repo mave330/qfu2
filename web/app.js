@@ -215,7 +215,7 @@ const renderAircraft = (data) => {
   list.innerHTML = "";
 
   if (!data.all_aircraft_nearby.length) {
-    list.innerHTML = `<div class="aircraft-card"><strong>No aircraft nearby</strong><span>OpenSky returned no traffic in the search radius.</span></div>`;
+    list.innerHTML = `<div class="aircraft-card"><strong>No aircraft nearby</strong><span>Airplanes.live returned no traffic in the search radius.</span></div>`;
     return;
   }
 

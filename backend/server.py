@@ -13,7 +13,7 @@ from datetime import datetime
 import httpx
 import math
 import csv
-import time
+import asyncio
 from functools import lru_cache
 
 try:
@@ -36,9 +36,7 @@ mongo_url = os.environ.get('MONGO_URL')
 db_name = os.environ.get('DB_NAME')
 client = AsyncIOMotorClient(mongo_url) if mongo_url and AsyncIOMotorClient else None
 db = client[db_name] if client and db_name else None
-opensky_client_id = os.environ.get("OPENSKY_CLIENT_ID")
-opensky_client_secret = os.environ.get("OPENSKY_CLIENT_SECRET")
-opensky_token_cache: Dict[str, Any] = {"access_token": None, "expires_at": 0}
+aircraft_cache: Dict[str, dict] = {}
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -2043,46 +2041,6 @@ def _score_runway_approach(aircraft: dict, runway: dict, direction: str, runway_
         "heading_diff": round(heading_diff, 1),
     }
 
-async def get_opensky_access_token() -> Optional[str]:
-    """Return a cached OpenSky OAuth access token when credentials are configured."""
-    if not opensky_client_id or not opensky_client_secret:
-        return None
-
-    now = time.time()
-    cached_token = opensky_token_cache.get("access_token")
-    if cached_token and now < opensky_token_cache.get("expires_at", 0):
-        return cached_token
-
-    token_url = "https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token"
-    data = {
-        "grant_type": "client_credentials",
-        "client_id": opensky_client_id,
-        "client_secret": opensky_client_secret,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=12.0) as token_client:
-            response = await token_client.post(token_url, data=data)
-            response.raise_for_status()
-            payload = response.json()
-    except Exception as e:
-        logger.warning(f"Failed to get OpenSky OAuth token: {type(e).__name__}: {e!r}")
-        return None
-
-    access_token = payload.get("access_token")
-    if not access_token:
-        logger.warning("OpenSky OAuth token response did not include access_token")
-        return None
-
-    expires_in = int(payload.get("expires_in", 1800))
-    opensky_token_cache["access_token"] = access_token
-    opensky_token_cache["expires_at"] = now + max(60, expires_in - 60)
-    return access_token
-
-async def get_opensky_headers() -> Dict[str, str]:
-    token = await get_opensky_access_token()
-    return {"Authorization": f"Bearer {token}"} if token else {}
-
 def get_runway_direction_from_heading(runway: dict, aircraft_heading: float) -> Optional[str]:
     """Determine which runway direction based on aircraft heading"""
     runway_name = runway["name"]
@@ -2138,82 +2096,13 @@ def get_runway_direction_from_heading(runway: dict, aircraft_heading: float) -> 
     
     return best_match if best_diff < 30 else None
 
-async def fetch_aircraft_from_opensky(lat: float, lon: float, radius_km: float = 30) -> Optional[List[dict]]:
-    """Fetch aircraft from OpenSky Network API"""
-    url = build_opensky_url(lat, lon, radius_km)
-    
-    async with httpx.AsyncClient(timeout=12.0) as client:
-        try:
-            response = await client.get(url, headers=await get_opensky_headers())
-            response.raise_for_status()
-            data = response.json()
-            
-            if data.get("states") is None:
-                return []
-            
-            aircraft_list = []
-            for state in data["states"]:
-                # OpenSky state vector indices:
-                # 0: icao24, 1: callsign, 2: origin_country, 3: time_position
-                # 4: last_contact, 5: longitude, 6: latitude, 7: baro_altitude
-                # 8: on_ground, 9: velocity, 10: true_track, 11: vertical_rate
-                # 12: sensors, 13: geo_altitude, 14: squawk, 15: spi, 16: position_source
-                
-                if state[6] is None or state[5] is None:  # lat, lon
-                    continue
-                
-                # Convert altitude from meters to feet (use geo_altitude if available, else baro)
-                altitude_m = state[13] if state[13] is not None else state[7]
-                altitude_ft = (altitude_m * 3.28084) if altitude_m is not None else 0
-                
-                # Convert velocity from m/s to knots
-                velocity_knots = (state[9] * 1.94384) if state[9] is not None else None
-                
-                # Calculate distance from airport
-                distance = haversine_distance(lat, lon, state[6], state[5])
-                
-                aircraft_list.append({
-                    "icao24": state[0],
-                    "callsign": state[1].strip() if state[1] else None,
-                    "latitude": state[6],
-                    "longitude": state[5],
-                    "altitude_ft": altitude_ft,
-                    "velocity_knots": velocity_knots,
-                    "heading": state[10],  # true_track
-                    "vertical_rate": state[11] * 3.28084 / 60 if state[11] is not None else None,  # Convert to ft/min
-                    "on_ground": state[8],
-                    "distance_km": round(distance, 2),
-                    "data_source": "OpenSky",
-                })
-            
-            return aircraft_list
-            
-        except httpx.HTTPStatusError as e:
-            logger.warning(f"OpenSky API error: {e}")
-            return None
-        except Exception as e:
-            logger.warning(f"Error fetching aircraft data from OpenSky: {type(e).__name__}: {e!r}")
-            return None
-
-def build_opensky_url(lat: float, lon: float, radius_km: float = 30) -> str:
-    """Build OpenSky bounding-box URL for an airport."""
-    lat_delta = radius_km / 111  # 1 degree ~= 111 km
-    lon_delta = radius_km / (111 * math.cos(math.radians(lat)))
-
-    lamin = lat - lat_delta
-    lamax = lat + lat_delta
-    lomin = lon - lon_delta
-    lomax = lon + lon_delta
-
-    return f"https://opensky-network.org/api/states/all?lamin={lamin}&lomin={lomin}&lamax={lamax}&lomax={lomax}"
-
 def build_airplanes_live_url(lat: float, lon: float, radius_km: float = 30) -> str:
     """Build Airplanes.live point-radius URL. Radius is in nautical miles."""
     radius_nm = max(1, min(250, round(radius_km / 1.852)))
     return f"https://api.airplanes.live/v2/point/{lat}/{lon}/{radius_nm}"
 
 async def fetch_aircraft_from_airplanes_live(lat: float, lon: float, radius_km: float = 30) -> Optional[List[dict]]:
-    """Fetch aircraft from Airplanes.live as a fallback when OpenSky is unavailable."""
+    """Fetch aircraft from Airplanes.live."""
     url = build_airplanes_live_url(lat, lon, radius_km)
 
     async with httpx.AsyncClient(timeout=12.0, headers={"User-Agent": "FlightQFUTracker/1.0"}) as client:
@@ -2260,14 +2149,22 @@ async def fetch_aircraft_from_airplanes_live(lat: float, lon: float, radius_km: 
             return None
 
 async def fetch_aircraft(lat: float, lon: float, radius_km: float = 30) -> List[dict]:
-    """Fetch aircraft with OpenSky first, then Airplanes.live if OpenSky fails."""
-    opensky_aircraft = await fetch_aircraft_from_opensky(lat, lon, radius_km)
-    if opensky_aircraft is not None:
-        return opensky_aircraft
+    """Fetch aircraft from Airplanes.live only."""
+    cache_key = f"{round(lat, 3)}:{round(lon, 3)}:{round(radius_km)}"
+    now = datetime.utcnow()
+    cached = aircraft_cache.get(cache_key)
+    if cached and (now - cached["timestamp"]).total_seconds() < 25:
+        logger.info("Using cached Airplanes.live aircraft data.")
+        return cached["aircraft"]
 
-    logger.info("OpenSky unavailable; trying Airplanes.live fallback...")
     airplanes_live_aircraft = await fetch_aircraft_from_airplanes_live(lat, lon, radius_km)
-    return airplanes_live_aircraft or []
+    if airplanes_live_aircraft is not None:
+        aircraft_cache[cache_key] = {
+            "timestamp": now,
+            "aircraft": airplanes_live_aircraft,
+        }
+        return airplanes_live_aircraft
+    return cached["aircraft"] if cached else []
 
 async def fetch_metar(icao: str) -> Optional[dict]:
     """Fetch METAR weather data from aviationweather.gov"""
@@ -2481,35 +2378,33 @@ async def get_airport(icao: str) -> dict:
         **airport
     }
 
-@api_router.get("/debug/opensky/{icao}")
-async def debug_opensky(icao: str) -> dict:
-    """Check whether the deployed server can reach OpenSky for an airport."""
+@api_router.get("/debug/aircraft/{icao}")
+async def debug_aircraft(icao: str) -> dict:
+    """Check whether the deployed server can reach Airplanes.live for an airport."""
     icao = icao.upper()
     airport = get_airport_by_ident(icao)
     if not airport:
         raise HTTPException(status_code=404, detail=f"Airport {icao} not found in database")
 
-    url = build_opensky_url(airport["lat"], airport["lon"], radius_km=30)
+    url = build_airplanes_live_url(airport["lat"], airport["lon"], radius_km=30)
     started_at = datetime.utcnow()
     try:
-        async with httpx.AsyncClient(timeout=12.0) as client:
-            headers = await get_opensky_headers()
-            response = await client.get(url, headers=headers)
+        timeout = httpx.Timeout(connect=3.0, read=4.0, write=3.0, pool=3.0)
+        async with httpx.AsyncClient(timeout=timeout, headers={"User-Agent": "FlightQFUTracker/1.0"}) as client:
+            response = await client.get(url)
         elapsed_ms = int((datetime.utcnow() - started_at).total_seconds() * 1000)
-        payload = None
         state_count = None
         parse_error = None
         try:
             payload = response.json()
-            states = payload.get("states") if isinstance(payload, dict) else None
-            state_count = len(states) if states is not None else None
+            rows = payload.get("ac") or payload.get("aircraft") or []
+            state_count = len(rows)
         except Exception as exc:
             parse_error = str(exc)
 
         return {
             "airport": icao,
-            "source": "OpenSky Network",
-            "authenticated": bool(headers.get("Authorization")),
+            "source": "Airplanes.live",
             "ok": response.is_success,
             "status_code": response.status_code,
             "elapsed_ms": elapsed_ms,
@@ -2521,8 +2416,7 @@ async def debug_opensky(icao: str) -> dict:
         elapsed_ms = int((datetime.utcnow() - started_at).total_seconds() * 1000)
         return {
             "airport": icao,
-            "source": "OpenSky Network",
-            "authenticated": bool(opensky_client_id and opensky_client_secret),
+            "source": "Airplanes.live",
             "ok": False,
             "status_code": None,
             "elapsed_ms": elapsed_ms,
@@ -2540,13 +2434,14 @@ async def get_runway_status(icao: str) -> RunwayAnalysisResponse:
     if not airport:
         raise HTTPException(status_code=404, detail=f"Airport {icao} not found. Use /api/airports to see available airports.")
     
-    # Fetch aircraft and METAR in parallel
+    # Fetch aircraft and METAR in parallel so weather does not wait behind
+    # a slow ADS-B provider timeout.
     logger.info(f"Fetching aircraft near {icao}...")
-    all_aircraft = await fetch_aircraft(airport["lat"], airport["lon"], radius_km=30)
+    aircraft_task = fetch_aircraft(airport["lat"], airport["lon"], radius_km=30)
+    metar_task = fetch_metar(icao)
+    all_aircraft, metar_data = await asyncio.gather(aircraft_task, metar_task)
     logger.info(f"Found {len(all_aircraft)} aircraft near {icao}")
     
-    # Fetch METAR weather data
-    metar_data = await fetch_metar(icao)
     logger.info(f"METAR for {icao}: {'found' if metar_data else 'not available'}")
     
     # Analyze landing aircraft (now with 2000ft AGL threshold)

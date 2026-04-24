@@ -2,7 +2,7 @@
 
 Flight QFU Tracker is a browser-ready webapp for estimating active landing runways at supported airports. It combines a FastAPI backend with a dependency-free static web UI, plus the original Expo React frontend for teams that want to continue mobile/web development there.
 
-The backend serves airport/runway data, current nearby aircraft from OpenSky Network, and METAR weather from aviationweather.gov. The frontend provides airport search, runway status, weather context, aircraft lists, a runway diagram, and refresh controls.
+The backend serves airport/runway data, current nearby aircraft from Airplanes.live, and METAR weather from aviationweather.gov. The frontend provides airport search, runway status, weather context, aircraft lists, a runway diagram, and refresh controls.
 
 ## Airport And Runway Data
 
@@ -99,14 +99,7 @@ http://127.0.0.1:8000/api   API
 
 MongoDB is optional for the current app because the QFU API is stateless. `backend/.env.example` is included for future persistence compatibility.
 
-OpenSky OAuth is optional but recommended on Render because anonymous OpenSky calls can time out or be rate-limited from cloud IPs:
-
-```text
-OPENSKY_CLIENT_ID=your-opensky-client-id
-OPENSKY_CLIENT_SECRET=your-opensky-client-secret
-```
-
-When those variables are present, the backend requests an OpenSky bearer token and uses authenticated `/states/all` calls. If OpenSky still fails, the app falls back to Airplanes.live.
+Aircraft positions come from Airplanes.live only. No OpenSky credentials or aircraft-provider environment variables are required.
 
 For Expo development, set:
 
