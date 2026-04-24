@@ -227,7 +227,7 @@ const renderAircraft = (data) => {
       : "";
     card.innerHTML = `
       <strong>${aircraft.callsign || aircraft.icao24.toUpperCase()}</strong>
-      <span>${number(aircraft.altitude_ft, " ft")} · ${number(aircraft.velocity_knots, " kt")} · heading ${number(aircraft.heading, "°")} · ${aircraft.distance_km ?? "-"} km from airport${runwayMatch}</span>
+      <span>${number(aircraft.altitude_ft, " ft")} · ${number(aircraft.velocity_knots, " kt")} · heading ${number(aircraft.heading, "°")} · ${aircraft.distance_km ?? "-"} km from airport · ${esc(aircraft.data_source || "ADS-B")}${runwayMatch}</span>
       <span>lat ${decimal(aircraft.latitude)}, lon ${decimal(aircraft.longitude)}</span>
     `;
     list.appendChild(card);

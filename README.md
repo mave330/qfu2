@@ -99,6 +99,15 @@ http://127.0.0.1:8000/api   API
 
 MongoDB is optional for the current app because the QFU API is stateless. `backend/.env.example` is included for future persistence compatibility.
 
+OpenSky OAuth is optional but recommended on Render because anonymous OpenSky calls can time out or be rate-limited from cloud IPs:
+
+```text
+OPENSKY_CLIENT_ID=your-opensky-client-id
+OPENSKY_CLIENT_SECRET=your-opensky-client-secret
+```
+
+When those variables are present, the backend requests an OpenSky bearer token and uses authenticated `/states/all` calls. If OpenSky still fails, the app falls back to Airplanes.live.
+
 For Expo development, set:
 
 ```text
